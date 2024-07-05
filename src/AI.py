@@ -1,8 +1,13 @@
 import torch
 import numpy as np
+
 # import supervision as sv
 from ultralytics import YOLOWorld
 from torchvision.transforms import ToTensor
+import subprocess
+
+EFFICIENT_SAM_CPU_URL = "https://huggingface.co/spaces/SkalskiP/YOLO-World/resolve/main/efficient_sam_s_cpu.jit"
+EFFICIENT_SAM_GPU_URL = "https://huggingface.co/spaces/SkalskiP/YOLO-World/resolve/main/efficient_sam_s_gpu.jit"
 
 
 class AI:
@@ -16,8 +21,8 @@ class AI:
         self.depth_scale_param = 1.32
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         self.yolo_world_model_path = "model/yolov8x-world.pt"
-        self.gpu_efficient_sam_model_path = "model/efficient_sam_s_gpu.jit"
-        self.cpu_efficient_sam_model_path = "model/efficient_sam_s_cpu.jit"
+        self.gpu_efficient_sam_model_path = "efficient_sam_s_gpu.jit"
+        self.cpu_efficient_sam_model_path = "efficient_sam_s_cpu.jit"
         # self.detection_model = YOLOWorld(self.yolo_world_model_path)
         self.detection_model = YOLOWorld("yolov8x-world.pt")
         self.detection_model.set_classes(self.classes)
@@ -25,9 +30,14 @@ class AI:
 
     def _load_SAM_model(self, device: torch.device) -> torch.jit.ScriptModule:
         if device.type == "cuda":
+            download_model_cmd = f"wget {EFFICIENT_SAM_GPU_URL}"
+            subprocess.call(download_model_cmd, shell=True)
             model = torch.jit.load(self.gpu_efficient_sam_model_path)
         else:
+            download_model_cmd = f"wget {EFFICIENT_SAM_CPU_URL}"
+            subprocess.call(download_model_cmd, shell=True)
             model = torch.jit.load(self.cpu_efficient_sam_model_path)
+
         model.eval()
         return model
 

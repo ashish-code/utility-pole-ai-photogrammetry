@@ -261,7 +261,7 @@ class Diameter:
             pole_width_realworld = scaling_factor * (
                 pole_width_pixels / badge_width_pixels
             )
-            
+
             self.diameter_list.append(pole_width_realworld)
             self.median_diameter = self._find_median_diameter()
 

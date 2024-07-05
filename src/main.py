@@ -54,7 +54,7 @@ def pole_diameter():
 
     video = Video(input_video_path, output_video_path)
     video.extract_frames_from_video()
-    
+
     ai = AI()
 
     diameter = Diameter()

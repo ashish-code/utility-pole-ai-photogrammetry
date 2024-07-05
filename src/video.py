@@ -27,8 +27,8 @@ class Video:
             os.mkdir(self.output_frames_directory_path)
         else:
             self.clean_the_directory(self.output_frames_directory_path)
-        
-        output_video_dir = '/'.join(output_video_path.split('/')[:-1])
+
+        output_video_dir = "/".join(output_video_path.split("/")[:-1])
         if not os.path.exists(output_video_dir):
             os.makedirs(self.output_video_dir, exist_ok=True)
 

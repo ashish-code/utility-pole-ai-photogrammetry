@@ -162,8 +162,9 @@ cython_debug/
 #.idea/
 
 # model files
-.pt 
-.jit 
+*.pt 
+*.jit 
 
 # image files
-.jpg
+*.jpg
+**/*.jpg

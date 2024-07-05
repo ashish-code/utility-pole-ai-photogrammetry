@@ -5,6 +5,7 @@ import numpy as np
 from ultralytics import YOLOWorld
 from torchvision.transforms import ToTensor
 import subprocess
+import os
 
 EFFICIENT_SAM_CPU_URL = "https://huggingface.co/spaces/SkalskiP/YOLO-World/resolve/main/efficient_sam_s_cpu.jit"
 EFFICIENT_SAM_GPU_URL = "https://huggingface.co/spaces/SkalskiP/YOLO-World/resolve/main/efficient_sam_s_gpu.jit"
@@ -30,12 +31,14 @@ class AI:
 
     def _load_SAM_model(self, device: torch.device) -> torch.jit.ScriptModule:
         if device.type == "cuda":
-            download_model_cmd = f"wget {EFFICIENT_SAM_GPU_URL}"
-            subprocess.call(download_model_cmd, shell=True)
+            if not os.path.exists(self.gpu_efficient_sam_model_path):
+                download_model_cmd = f"wget {EFFICIENT_SAM_GPU_URL}"
+                subprocess.call(download_model_cmd, shell=True)
             model = torch.jit.load(self.gpu_efficient_sam_model_path)
         else:
-            download_model_cmd = f"wget {EFFICIENT_SAM_CPU_URL}"
-            subprocess.call(download_model_cmd, shell=True)
+            if not os.path.exists(self.cpu_efficient_sam_model_path):
+                download_model_cmd = f"wget {EFFICIENT_SAM_CPU_URL}"
+                subprocess.call(download_model_cmd, shell=True)
             model = torch.jit.load(self.cpu_efficient_sam_model_path)
 
         model.eval()

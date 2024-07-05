@@ -1,0 +1,5 @@
+torch
+opencv-python
+supervision>=0.21.0
+ultralytics>=8.2.5
+clip @ git+https://github.com/ultralytics/CLIP.git

@@ -3,7 +3,7 @@ Utility pole diameter estimation using images and AI for Osmose
 
 
 ## Usage:
-%python src/main.py -i <path-to-input-video> -o <path-to-output-video> -d <manually measured diameter in INCHES>
+%python src/main.py -i \<path-to-input-video\> -o \<path-to-output-video\> -d \<manually measured diameter in INCHES\>
 
 %python src/main.py
 

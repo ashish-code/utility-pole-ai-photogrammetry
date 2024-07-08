@@ -5,9 +5,13 @@ Utility pole diameter estimation using images and AI for Osmose
 
 ### Install Homebrew
 $ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+
 OR
+
 install using homebrew package: https://github.com/Homebrew/brew/releases/download/4.3.9/Homebrew-4.3.9.pkg
+
 $ wget https://github.com/Homebrew/brew/releases/download/4.3.9/Homebrew-4.3.9.pkg
+
 $ sud installer -pkg Homebrew-4.3.9.pkg
 
 
@@ -29,7 +33,9 @@ $ pipx install poetry
 ### Initialize poetry
 
 $ git clone <project-git-link>
+
 $ cd "Osmose-Pole-Diameter"
+
 $ poetry install
 
 
@@ -46,8 +52,11 @@ $ poetry run python src/main.py -i \<path-to-input-video\> -d \<manually measure
 ## Output
 
 A sample of the result of AI estimation of diameter of the utility pole:
+
 ![frame0001](https://github.com/BrightDotAi/Osmose-Pole-Diameter/assets/29873946/c86556de-8d30-46ea-a088-604ad85d87ab)
+
 The pole is annotated by a bounding-box and segmented region in blue. The badge is annotated by a bounding-box and segmented region in red.
 
 The A.I. estimated diameter is shown in the lower-left portion of the result image. 
+
 If a manually measured diameter is provided, then this manually measured diameter and estimated error is also shown in the resulting image.

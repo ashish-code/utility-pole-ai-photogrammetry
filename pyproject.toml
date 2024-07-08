@@ -12,6 +12,7 @@ torchvision = "^0.18.1"
 ultralytics = "^8.2.51"
 opencv-python = "^4.10.0.84"
 supervision = "^0.21.0"
+clip = {git = "https://github.com/ultralytics/CLIP.git"}
 
 
 [build-system]

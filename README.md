@@ -1,14 +1,50 @@
 # Osmose-Pole-Diameter
 Utility pole diameter estimation using images and AI for Osmose
 
+## Mac Users
 
-## Usage:
-%python src/main.py -i \<path-to-input-video\> -o \<path-to-output-video\> -d \<manually measured diameter in INCHES\>
+### Install Homebrew
+$ /bin/bash -c "$(curl -fsSL https://raw.githubusercontent.com/Homebrew/install/HEAD/install.sh)"
+OR
+install using homebrew package: https://github.com/Homebrew/brew/releases/download/4.3.9/Homebrew-4.3.9.pkg
+$ wget https://github.com/Homebrew/brew/releases/download/4.3.9/Homebrew-4.3.9.pkg
+$ sud installer -pkg Homebrew-4.3.9.pkg
 
-%python src/main.py
+
+### Install ffmpeg
+
+$ brew install ffmpeg
 
 
-## Output:
+### Install pipx
+
+$ brew instal pipx
+
+
+### Instll poetry
+
+$ pipx install poetry
+
+
+### Initialize poetry
+
+$ git clone <project-git-link>
+$ cd "Osmose-Pole-Diameter"
+$ poetry install
+
+
+## Usage
+
+$ poetry run python src/main.py -i \<path-to-input-video\> -o \<path-to-output-video\> -d \<manually measured diameter in INCHES\>
+
+$ poetry run python src/main.py
+
+$ poetry run python src/main.py -d 9.5
+
+$ poetry run python src/main.py -i \<path-to-input-video\> -d \<manually measured diameter in INCHES\>
+
+## Output
+
 A sample of the result of AI estimation of diameter of the utility pole:
 ![frame0001](https://github.com/BrightDotAi/Osmose-Pole-Diameter/assets/29873946/c86556de-8d30-46ea-a088-604ad85d87ab)
 The pole is annotated by a bounding-box and segmented region in blue. The badge is annotated by a bounding-box and segmented region in red.

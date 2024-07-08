@@ -36,7 +36,7 @@ def pole_diameter():
         "--output",
         type=str,
         help="path (posix) to the output video file",
-        default="result/sample_1_result.mp4",
+        default="",
     )
     parser.add_argument(
         "-d",
@@ -60,12 +60,12 @@ def pole_diameter():
     diameter = Diameter()
     diameter.compute_diameter_for_video(video, ai, ground_truth_diameter)
 
-    video.generate_video_from_frames()
+    output_video_path = video.generate_video_from_frames()
 
     t_stop = time.time()
     t_elapsed = int(t_stop - t_start)
     print(
-        f"Completed generating result video: {video.output_video_path} in {t_elapsed} seconds."
+        f"Completed generating result video: {output_video_path} in {t_elapsed} seconds."
     )
 
 

@@ -14,6 +14,7 @@ class Video:
     def __init__(self, input_video_path, output_video_path):
         self.input_video_path = input_video_path
         self.output_video_path = output_video_path
+        self.output_video_dir = 'result/'
 
         self.input_frames_directory_path = "data/temp/input/"
         self.output_frames_directory_path = "data/temp/output/"
@@ -28,6 +29,10 @@ class Video:
         else:
             self.clean_the_directory(self.output_frames_directory_path)
 
+        if output_video_path == "":
+            input_video_file_name = self.input_video_path.split('/')[-1]
+            self.output_video_path = self.output_video_dir + input_video_file_name.split('.')[0] + '_result.mp4'
+        
         output_video_dir = "/".join(output_video_path.split("/")[:-1])
         if not os.path.exists(output_video_dir):
             os.makedirs(self.output_video_dir, exist_ok=True)
@@ -71,7 +76,7 @@ class Video:
                 "Please install ffmpeg. On Mac you can use homebrew as brew install ffmpeg"
             )
 
-    def generate_video_from_frames(self) -> None:
+    def generate_video_from_frames(self) -> str:
         """create a video from image frames using ffmpeg
 
         Returns:
@@ -98,3 +103,5 @@ class Video:
             print(
                 "Please install ffmpeg. On Mac you can use homebrew as %brew install ffmpeg"
             )
+        
+        return self.output_video_path

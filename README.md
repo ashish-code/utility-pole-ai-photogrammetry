@@ -26,20 +26,40 @@ $ brew instal pipx
 
 
 ### Instll poetry
+If you haven't already, install Poetry. You can install it via the following command:
 
 $ pipx install poetry
 
 
-### Initialize poetry
+### Clone the project from Github
 
-$ git clone <project-git-link>
+$ git clone \<project-git-link\>
 
 $ cd "Osmose-Pole-Diameter"
+
+### Install Project dependencies using Poetry
+
+Once Poetry is installed and you are in the cloned repository's directory, install the project dependencies:
 
 $ poetry install
 
 
 ## Usage
+
+### Using Poetry shell
+Poetry manages a virtual environment for your project. You can activate it using:
+
+$ poetry shell
+
+(\<poetry-venv\>)$ python src/main.py -i \<path-to-input-video\> -o \<path-to-output-video\> -d \<manually measured diameter in INCHES\>
+
+(\<poetry-venv\>)$ python src/main.py
+
+(\<poetry-venv\>)$ python src/main.py -d 9.5
+
+(\<poetry-venv\>)$ python src/main.py -i \<path-to-input-video\> -d \<manually measured diameter in INCHES\>
+
+### Running file directly
 
 $ poetry run python src/main.py -i \<path-to-input-video\> -o \<path-to-output-video\> -d \<manually measured diameter in INCHES\>
 
@@ -49,7 +69,8 @@ $ poetry run python src/main.py -d 9.5
 
 $ poetry run python src/main.py -i \<path-to-input-video\> -d \<manually measured diameter in INCHES\>
 
-## Output
+
+## Result
 
 A sample of the result of AI estimation of diameter of the utility pole:
 

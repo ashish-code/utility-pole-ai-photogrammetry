@@ -1,7 +1,7 @@
 [tool.poetry]
-name = "osmose-pole-diameter"
-version = "0.1.0"
-description = "A.I. estimate utility pole diameter for Osmose"
+name = "utility-pole-ai-photogrammetry"
+version = "1.0.0"
+description = "AI photogrammetry for utility poles: width estimation and tilt angle measurement"
 authors = ["Ashish Gupta <ashishanilgupta@gmail.com>"]
 readme = "README.md"
 
@@ -12,6 +12,9 @@ torchvision = "^0.18.1"
 ultralytics = "^8.2.51"
 opencv-python = "^4.10.0.84"
 supervision = "^0.21.0"
+scikit-image = "^0.24.0"
+matplotlib = "^3.8"
+pandas = "^2.0"
 clip = {git = "https://github.com/ultralytics/CLIP.git"}
 scikit-image = "^0.24.0"
 

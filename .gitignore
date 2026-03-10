@@ -162,13 +162,16 @@ cython_debug/
 #.idea/
 
 # model files
-*.pt 
-*.jit 
+*.pt
+*.jit
 
-# image files
-*.jpg
-**/*.jpg
-# macOS
+# macOS metadata
 .DS_Store
-*/.DS_Store
 **/.DS_Store
+
+# Temporary frame extraction directories (created at runtime by video.py)
+data/temp/
+
+# Vanishing-point experiment (separate from main portfolio)
+data/vanishingpoint/
+result/vanishingpoint/

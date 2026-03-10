@@ -1,209 +1,408 @@
-"""Osmose Project
+"""
 Utility Pole Tilt Estimation
+=============================
+Estimates the tilt angle (degrees from vertical) of a utility pole in a
+still image using:
+  1. YOLO-World open-vocabulary detection  → pole bounding box
+  2. Efficient-SAM instance segmentation   → pixel-precise pole mask
+  3. Medial-axis transform (skimage)        → single-pixel skeleton
+  4. Hough line transform                  → dominant axis direction
+  5. Angle from vertical                   → final tilt measurement
 
-Objective: Estimate tilt of a utility with accuracy. 
-Data: The data available is an image.
-Approach: Use A.I. based methods. This project utilizes visual detection and visual object instance segmentation.
-The visual detection model is YOLO-World, an open vocabulary visual object detection model.
-The visual segmentation model is Efficient-SAM, an open vocabulary image segmentation model for instance segmentation.
+Output per image
+----------------
+* ``<stem>_tilt.jpg``   – clean annotated image with angle arc overlay
+* ``<stem>_analysis.jpg`` – 4-panel methodology figure (detection, mask,
+                              skeleton, Hough candidates)
 
 Author: Ashish Gupta
-Email: ashish@bright.ai
-Date: 2024/07/18
+Date:   2024/07/18
 """
 
+from __future__ import annotations
 
-import supervision as sv
-from AI import AI
+import os
+import csv
+import math
+from pathlib import Path
+
 import cv2
 import numpy as np
-import os
+import matplotlib
+matplotlib.use("Agg")          # non-interactive backend — no plt.show() blocking
 import matplotlib.pyplot as plt
 from matplotlib import cm
+
 import skimage
+import skimage.morphology
 from skimage.transform import hough_line, hough_line_peaks
-from skimage.feature import canny
-from skimage.draw import line as draw_line
+import supervision as sv
+
+from AI import AI
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Constants
+# ─────────────────────────────────────────────────────────────────────────────
+
+# Palette: pole = blue, badge = red  (kept consistent with diameter.py)
+_PALETTE = sv.ColorPalette.from_hex(["#1616f7", "#f71616"])
+
+# Heuristic thresholds (same as diameter.py)
+_MIN_AREA_FRAC = 0.04   # pole must be ≥ 4 % of image area
+_MAX_AREA_FRAC = 0.75   # pole must be ≤ 75 % of image area
+
+# Annotation colours (BGR for OpenCV)
+_WHITE  = (255, 255, 255)
+_BLACK  = (10,  10,  10)
+_GREEN  = (50,  220,  50)
+_YELLOW = (30,  220, 230)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Helpers
+# ─────────────────────────────────────────────────────────────────────────────
+
+def _detect_pole(image_rgb: np.ndarray, ai: AI) -> sv.Detections | None:
+    """Run YOLO-World detection and apply pole heuristics.
+
+    Returns the single best pole detection, or None if no valid pole found.
+    """
+    results = ai.detection_model.predict(
+        source=image_rgb,
+        conf=ai.confidence_threshold,
+        iou=ai.iou_threshold,
+        max_det=ai.max_detections,
+        verbose=False,
+    )[0]
+    detections = sv.Detections.from_ultralytics(results)
+    poles = detections[detections.class_id == 0]
+
+    if len(poles) == 0:
+        return None
+
+    h, w = image_rgb.shape[:2]
+    image_area = h * w
+
+    # height > width (elongated shape)
+    box_w = poles.xyxy[:, 2] - poles.xyxy[:, 0]
+    box_h = poles.xyxy[:, 3] - poles.xyxy[:, 1]
+    poles = poles[box_h > box_w]
+
+    # area within sensible range
+    poles = poles[poles.box_area > _MIN_AREA_FRAC * image_area]
+    poles = poles[poles.box_area < _MAX_AREA_FRAC * image_area]
+
+    if len(poles) == 0:
+        return None
+
+    # keep largest detection
+    biggest = max(poles.box_area)
+    poles = poles[poles.box_area >= biggest]
+    return poles
+
+
+def _tilt_from_mask(mask: np.ndarray) -> float:
+    """Derive tilt angle (degrees from vertical) from a binary pole mask.
+
+    Uses medial-axis thinning followed by the Hough line transform.
+    Convention: 0° = perfectly vertical; positive = leans right;
+    negative = leans left.
+    """
+    skeleton = skimage.morphology.medial_axis(mask).astype(np.uint8) * 255
+
+    # Dense angular sampling around vertical (±45°)
+    tested_angles = np.linspace(-np.pi / 2, np.pi / 2, 720, endpoint=False)
+    h, theta, d = hough_line(skeleton, theta=tested_angles)
+    peaks = hough_line_peaks(h, theta, d, num_peaks=5)
+
+    if len(peaks[0]) == 0:
+        return 0.0
+
+    # theta is the angle of the line's NORMAL from the x-axis.
+    # For a near-vertical line the normal is near-horizontal → theta ≈ 0.
+    # Tilt from vertical = theta in degrees.
+    angle_deg = float(np.median(peaks[1]) * 180.0 / np.pi)
+    return round(angle_deg, 2)
+
+
+def _draw_angle_overlay(
+    image_bgr: np.ndarray,
+    tilt_deg: float,
+    pole_box: np.ndarray,
+) -> np.ndarray:
+    """Overlay tilt angle arc and text on the annotated image.
+
+    Draws:
+      * A short vertical reference line in green
+      * A coloured line along the detected pole axis
+      * An arc between them labelled with the angle
+    """
+    out = image_bgr.copy()
+    x1, y1, x2, y2 = [int(v) for v in pole_box]
+    cx = (x1 + x2) // 2
+    cy = (y1 + y2) // 2
+    arm = int(min(x2 - x1, y2 - y1) * 0.55)   # length of reference arms
+
+    # Vertical reference line
+    cv2.line(out, (cx, cy - arm), (cx, cy + arm), _GREEN, 3, cv2.LINE_AA)
+
+    # Detected pole axis (rotate vertical by tilt_deg)
+    angle_rad = math.radians(tilt_deg)
+    dx = int(arm * math.sin(angle_rad))
+    dy = int(arm * math.cos(angle_rad))
+    cv2.line(out, (cx - dx, cy - dy), (cx + dx, cy + dy), _YELLOW, 4, cv2.LINE_AA)
+
+    # Arc between the two lines
+    start_angle = -90          # vertical = -90° in OpenCV convention
+    end_angle   = -90 + tilt_deg
+    cv2.ellipse(
+        out, (cx, cy), (arm // 2, arm // 2),
+        0, start_angle, end_angle,
+        _YELLOW, 3, cv2.LINE_AA,
+    )
+
+    # Text label
+    font       = cv2.FONT_HERSHEY_SIMPLEX
+    font_scale = 1.4
+    thickness  = 3
+    label      = f"Tilt: {tilt_deg:+.1f}\u00b0 from vertical"
+    (tw, th), _ = cv2.getTextSize(label, font, font_scale, thickness)
+
+    # Semi-transparent background rectangle
+    pad = 10
+    tx  = max(x1, 10)
+    ty  = max(y1 - th - 2 * pad, 10)
+    bg_roi = out[ty : ty + th + 2 * pad, tx : tx + tw + 2 * pad]
+    if bg_roi.size > 0:
+        white_rect = np.ones_like(bg_roi) * 255
+        out[ty : ty + th + 2 * pad, tx : tx + tw + 2 * pad] = cv2.addWeighted(
+            bg_roi, 0.45, white_rect, 0.55, 0
+        )
+
+    cv2.putText(
+        out, label, (tx + pad, ty + th + pad),
+        font, font_scale, _BLACK, thickness, cv2.LINE_AA,
+    )
+    return out
+
+
+def _save_analysis_figure(
+    image_rgb: np.ndarray,
+    pole_mask: np.ndarray,
+    tilt_deg: float,
+    image_name: str,
+    output_path: str,
+) -> None:
+    """Save a 4-panel methodology figure (non-blocking)."""
+    skeleton = skimage.morphology.medial_axis(pole_mask).astype(np.uint8) * 255
+    tested_angles = np.linspace(-np.pi / 2, np.pi / 2, 720, endpoint=False)
+    h, theta, d = hough_line(skeleton, theta=tested_angles)
+
+    fig, axes = plt.subplots(2, 2, figsize=(10, 10))
+    fig.suptitle(
+        f"Pole Tilt Analysis — {image_name}\nEstimated tilt: {tilt_deg:+.1f}° from vertical",
+        fontsize=13,
+    )
+
+    axes[0, 0].imshow(image_rgb)
+    axes[0, 0].set_title("(1) Input image")
+    axes[0, 0].axis("off")
+
+    axes[0, 1].imshow(pole_mask.view(np.uint8), cmap="bone")
+    axes[0, 1].set_title("(2) EfficientSAM pole mask")
+    axes[0, 1].axis("off")
+
+    axes[1, 0].imshow(np.invert(skeleton), cmap=cm.gray)
+    axes[1, 0].set_title("(3) Medial-axis skeleton")
+    axes[1, 0].axis("off")
+
+    axes[1, 1].imshow(image_rgb, cmap=cm.gray)
+    axes[1, 1].set_ylim((skeleton.shape[0], 0))
+    axes[1, 1].set_axis_off()
+    axes[1, 1].set_title(f"(4) Hough line candidates — tilt {tilt_deg:+.1f}°")
+
+    for _, angle, dist in zip(*hough_line_peaks(h, theta, d, num_peaks=5)):
+        x0, y0 = dist * np.array([np.cos(angle), np.sin(angle)])
+        axes[1, 1].axline(
+            (x0, y0), slope=np.tan(angle + np.pi / 2),
+            color="red", linestyle="-.", linewidth=1.5,
+        )
+
+    plt.tight_layout()
+    plt.savefig(output_path, dpi=120, bbox_inches="tight")
+    plt.close(fig)
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# Public API
+# ─────────────────────────────────────────────────────────────────────────────
 
 class Tilt:
-    def __init__(self):
-        self._tilt_angle = 0.0
-    
+    """Estimate the tilt angle of a utility pole from a single image."""
+
+    def __init__(self) -> None:
+        self._tilt_angle: float = 0.0
+
     @property
-    def tilt_angle(self):
+    def tilt_angle(self) -> float:
         return self._tilt_angle
 
-    @tilt_angle.setter
-    def tilt_angle(self, tilt_angle):
-        self._tilt_angle = tilt_angle
-    
-    def compute_tilt(self, 
-                     input_image_path: str, 
-                     output_image_path: str, 
-                     ai: AI,
-                     ground_truth_tilt: float):
-        """compute angle (degree) of tilt of utility pole from vertical
+    def compute_tilt(
+        self,
+        input_image_path: str,
+        output_image_path: str,
+        ai: AI,
+        ground_truth_tilt: float = 0.0,
+    ) -> float:
+        """Estimate tilt angle and write annotated output images.
 
-        Args:
-            input_image_path (str): path (posix) of the pole image
-            ai (AI): object detection and segmentation
+        Parameters
+        ----------
+        input_image_path:
+            Path to the input image file.
+        output_image_path:
+            Destination for the clean annotated image (``_tilt.jpg``).
+            The analysis figure is saved alongside with ``_analysis.jpg``.
+        ai:
+            Loaded AI object (YOLO-World + EfficientSAM).
+        ground_truth_tilt:
+            Optional ground-truth tilt in degrees (used only for logging).
+
+        Returns
+        -------
+        float
+            Estimated tilt in degrees from vertical.
         """
-        self.ground_truth_tilt = ground_truth_tilt
-        custom_color = sv.ColorPalette.from_hex(["#1616f7", "#f71616"])
-        
-        # Read Image and Pre-process
-        image_bgr = cv2.imread(input_image_path)
-        image = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
-        
-        # Initialize image/frame with no viable detections
-        annotated_image = image_bgr
+        image_bgr  = cv2.imread(input_image_path)
+        if image_bgr is None:
+            print(f"  [WARN] Cannot read image: {input_image_path}")
+            return 0.0
 
-        # CALL DETECTION MODEL
-        results = ai.detection_model.predict(
-            source=image,
-            conf=ai.confidence_threshold,
-            iou=ai.iou_threshold,
-            max_det=ai.max_detections,
-            verbose=False,
-        )[0]
+        image_rgb = cv2.cvtColor(image_bgr, cv2.COLOR_BGR2RGB)
 
-        # Parse detection results into Supervision object
-        detections = sv.Detections.from_ultralytics(results)
-        
-        # Supervision library annotator objects
-        bounding_box_annotator = sv.BoundingBoxAnnotator(
-            thickness=6, color=custom_color
+        # ── Detection ──────────────────────────────────────────────────────
+        poles = _detect_pole(image_rgb, ai)
+        if poles is None:
+            print(f"  [WARN] No valid pole detected in {Path(input_image_path).name}")
+            cv2.imwrite(output_image_path, image_bgr)
+            return 0.0
+
+        # ── Segmentation ───────────────────────────────────────────────────
+        poles.mask = ai.inference_with_boxes(
+            image=image_rgb,
+            xyxy=poles.xyxy,
+            model=ai.segmentation_model,
+            device=ai.device,
         )
-        label_annotator = sv.LabelAnnotator(
-            color=custom_color,
-            text_color=sv.Color.BLACK,
-            text_thickness=2,
-            text_scale=1.5,
-            text_position=sv.Position.CENTER_RIGHT,
-        )
-        mask_annotator = sv.MaskAnnotator(color=custom_color, opacity=0.3)
-        
-        detections_pole = detections[detections.class_id == 0]
-        
-        # Skip the image/frame if no Pole is detected
-        if len(detections_pole.box_area) == 0:
-            return
-        
-        # ------------------------------------------------------------
-        # Heuristics for pruning false-positive detections of Pole
+        pole_mask = poles.mask[0]
 
-        image_size = tuple(image.shape[:2])
-        image_height = image_size[0]
-        image_width = image_size[1]
-        image_area = image_height * image_width
+        # ── Tilt angle ─────────────────────────────────────────────────────
+        tilt_deg       = _tilt_from_mask(pole_mask)
+        self._tilt_angle = tilt_deg
 
-        # -- POLE --
-        box_w = detections_pole.xyxy[:, 2] - detections_pole.xyxy[:, 0]
-        box_h = detections_pole.xyxy[:, 3] - detections_pole.xyxy[:, 1]
+        # ── Annotated clean output image ───────────────────────────────────
+        bb_annotator   = sv.BoundingBoxAnnotator(thickness=5, color=_PALETTE)
+        mask_annotator = sv.MaskAnnotator(color=_PALETTE, opacity=0.25)
+        annotated      = bb_annotator.annotate(scene=image_bgr.copy(), detections=poles)
+        annotated      = mask_annotator.annotate(scene=annotated, detections=poles)
+        annotated      = _draw_angle_overlay(annotated, tilt_deg, poles.xyxy[0])
+        cv2.imwrite(output_image_path, annotated)
 
-        # Only select detections where pole height is greater than pole width
-        detections_pole = detections_pole[box_h > box_w]
+        # ── Methodology figure ─────────────────────────────────────────────
+        stem            = Path(output_image_path).stem
+        parent          = Path(output_image_path).parent
+        analysis_path   = str(parent / f"{stem}_analysis.jpg")
+        image_name      = Path(input_image_path).name
+        _save_analysis_figure(image_rgb, pole_mask, tilt_deg, image_name, analysis_path)
 
-        box_w = detections_pole.xyxy[:, 2] - detections_pole.xyxy[:, 0]
-        box_h = detections_pole.xyxy[:, 3] - detections_pole.xyxy[:, 1]
+        return tilt_deg
 
-        # only select detections where pole height is atleast 90% of the image height
-        # detections_pole = detections_pole[box_h > 0.9 * image_height]
 
-        # only select detections where pole area in pixels is at least 4% of the image area
-        detections_pole = detections_pole[detections_pole.box_area > 0.04 * image_area]
+# ─────────────────────────────────────────────────────────────────────────────
+# Batch processing
+# ─────────────────────────────────────────────────────────────────────────────
 
-        # only select detections where pole area is pixels does not exceed 75% of the image area
-        max_pole_area = 0.75 * image_area
-        detections_pole = detections_pole[detections_pole.box_area < max_pole_area]
+def run_tilt_batch(
+    input_dir: str,
+    output_dir: str,
+    ai: AI | None = None,
+    results_csv: str = "",
+) -> list[dict]:
+    """Process all JPEG images in *input_dir* and write annotated results.
 
-        # only select the biggest detected pole
-        if len(detections_pole.box_area) > 0:
-            biggest_pole_area = max(detections_pole.box_area)
-            detections_pole = detections_pole[
-                detections_pole.box_area >= biggest_pole_area
-            ]
+    Parameters
+    ----------
+    input_dir:
+        Folder containing input ``.jpg`` images.
+    output_dir:
+        Folder where annotated images and analysis figures are written.
+    ai:
+        Pre-loaded AI object.  A new one is instantiated if ``None``.
+    results_csv:
+        If non-empty, a CSV summary is written to this path with columns
+        ``filename, tilt_deg``.
 
-        # if no valid detections remain, skip the image/frame from further processing
-        if len(detections_pole.box_area) == 0:
-            cv2.imwrite(output_image_path, annotated_image)
-            return
+    Returns
+    -------
+    list[dict]
+        One dict per image: ``{"filename": ..., "tilt_deg": ...}``.
+    """
+    if ai is None:
+        ai = AI()
 
-        # ------------------------------------------------------------
-        
-        # ------------------------------------------------------------
-        # SEGMENTATION MASK
+    os.makedirs(output_dir, exist_ok=True)
+    images = sorted(
+        p for p in os.listdir(input_dir)
+        if p.lower().endswith((".jpg", ".jpeg", ".png"))
+    )
 
-        # initialize mask for POLE
-        pole_mask = None
+    if not images:
+        print(f"[WARN] No images found in {input_dir}")
+        return []
 
-        if len(detections_pole.box_area) > 0:
-            annotated_image = bounding_box_annotator.annotate(
-                scene=annotated_image, detections=detections_pole
-            )
-            annotated_image = label_annotator.annotate(
-                scene=annotated_image, detections=detections_pole
-            )
+    tilt_obj = Tilt()
+    rows: list[dict] = []
 
-            # use the detected bounding-box to find segmentation mask for pole
-            # using Efficient-SAM
-            detections_pole.mask = ai.inference_with_boxes(
-                image=image,
-                xyxy=detections_pole.xyxy,
-                model=ai.segmentation_model,
-                device=ai.device,
-            )
+    for img_name in images:
+        in_path  = os.path.join(input_dir, img_name)
+        stem     = Path(img_name).stem
+        out_path = os.path.join(output_dir, f"{stem}_tilt.jpg")
+        print(f"  Processing: {img_name} ...", end="  ")
 
-            # annotate the image with the pole mask
-            annotated_image = mask_annotator.annotate(
-                scene=annotated_image, detections=detections_pole
-            )
+        tilt_deg = tilt_obj.compute_tilt(in_path, out_path, ai)
+        print(f"tilt = {tilt_deg:+.2f}°")
+        rows.append({"filename": img_name, "tilt_deg": tilt_deg})
 
-            pole_mask = detections_pole.mask[0]
-            medial_axis = skimage.morphology.medial_axis(pole_mask)
-            
-            medial_axis_image = 255 * medial_axis
-            
-            
-            # straight-line Hough Transform
-            tested_angles = np.linspace(-np.pi / 2, np.pi / 2, 360, endpoint=False)
-            h, theta, d = hough_line(medial_axis_image, theta=tested_angles)
-            
-            bestH, bestTheta, bestD = skimage.transform.hough_line_peaks(h, theta, d)
-            
-            angle = np.median(bestTheta * (180/np.pi))
-            angle = np.round(angle, 2)
-            self._tilt_angle = angle
-            
-            # print(f'Tilt angle: {angle} degrees')
-            
-            # DEBUG
-            fig, axes = plt.subplots(2, 2, figsize=(8,8))
-            image_name = input_image_path.split('/')[-1].split('.')[0]
-            fig.suptitle(f'Utility Pole Tilt: {angle} degrees.\n{image_name}')
-            axes[0, 0].imshow(image)
-            axes[0, 0].axis('off')
-            axes[0, 0].set_title('original image')
-            
-            axes[0, 1].imshow(pole_mask.view(np.uint8), cmap='bone')
-            axes[0, 1].axis('off')
-            axes[0, 1].set_title('pole segmentation')
-            
-            axes[1, 0].imshow(np.invert(medial_axis).view(np.uint8), cmap=cm.gray)
-            # axes[1, 0].set_title('medial-axis-transform')
-            axes[1, 0].set_title('thinned pole mask')
-            
-            axes[1, 1].imshow(image, cmap=cm.gray)
-            axes[1, 1].set_ylim((medial_axis_image.shape[0], 0))
-            axes[1, 1].set_axis_off()
-            axes[1, 1].set_title('pole tilt candidate(s)')
+    if results_csv:
+        with open(results_csv, "w", newline="") as f:
+            writer = csv.DictWriter(f, fieldnames=["filename", "tilt_deg"])
+            writer.writeheader()
+            writer.writerows(rows)
+        print(f"\n  Results saved → {results_csv}")
 
-            for _, angle, dist in zip(*hough_line_peaks(h, theta, d)):
-                (x0, y0) = dist * np.array([np.cos(angle), np.sin(angle)])
-                axes[1, 1].axline((x0, y0), slope=np.tan(angle + np.pi / 2), color='red', linestyle='-.')
-            
-            # save image to file
-            plt.savefig(output_image_path)
-            plt.show()
-            
-            
+    return rows
+
+
+# ─────────────────────────────────────────────────────────────────────────────
+# CLI entry-point (single image)
+# ─────────────────────────────────────────────────────────────────────────────
+
+if __name__ == "__main__":
+    import argparse
+
+    parser = argparse.ArgumentParser(
+        description="Utility Pole Tilt Estimation — single image mode"
+    )
+    parser.add_argument("-i", "--input",  default="data/sample/pole_tilt/leaning_pole_01.jpg")
+    parser.add_argument("-o", "--output", default="result/pole_tilt/leaning_pole_01_tilt.jpg")
+    parser.add_argument("-t", "--tilt",   type=float, default=0.0,
+                        help="Ground-truth tilt in degrees (optional, for logging)")
+    args = parser.parse_args()
+
+    os.makedirs(Path(args.output).parent, exist_ok=True)
+
+    ai   = AI()
+    t    = Tilt()
+    deg  = t.compute_tilt(args.input, args.output, ai, args.tilt)
+    print(f"Pole tilt: {deg:+.2f}° from vertical")

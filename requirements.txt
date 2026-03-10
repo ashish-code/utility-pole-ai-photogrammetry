@@ -1,5 +1,9 @@
-torch
-opencv-python
+torch>=2.3.1
+torchvision>=0.18.1
+ultralytics>=8.2.51
+opencv-python>=4.10.0.84
 supervision>=0.21.0
-ultralytics>=8.2.5
+scikit-image>=0.24.0
+matplotlib>=3.8
+pandas>=2.0
 clip @ git+https://github.com/ultralytics/CLIP.git

@@ -1,0 +1,23 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 1200 300" width="1200" height="300" font-family="'Segoe UI', system-ui, -apple-system, Helvetica, Arial, sans-serif">
+  <defs>
+    <linearGradient id="bg" x1="0" y1="0" x2="1" y2="1"><stop offset="0" stop-color="#0B1120"/><stop offset="1" stop-color="#111C33"/></linearGradient>
+    <radialGradient id="glow" cx="0.82" cy="0.45" r="0.5"><stop offset="0" stop-color="#A3E635" stop-opacity="0.28"/><stop offset="1" stop-color="#A3E635" stop-opacity="0"/></radialGradient>
+  </defs>
+  <rect width="1200" height="300" rx="16" fill="url(#bg)"/>
+  <rect width="1200" height="300" rx="16" fill="url(#glow)"/>
+  <rect x="1.5" y="1.5" width="1197" height="297" rx="15" fill="none" stroke="#A3E635" stroke-opacity="0.22"/>
+  <rect x="64" y="70" width="4" height="150" rx="2" fill="#A3E635"/>
+  <text x="88" y="86" fill="#A3E635" font-size="15" font-weight="700" letter-spacing="3.2">ZERO-SHOT CV · FIELD PHOTOGRAMMETRY</text>
+  <text x="86" y="150" fill="#F4F7FB" font-size="40" font-weight="800" letter-spacing="0.5">Utility-Pole Photogrammetry</text>
+  <text x="88" y="192" fill="#9AA7BD" font-size="21">Non-contact pole geometry from field video —</text><text x="88" y="219" fill="#9AA7BD" font-size="21">diameter &amp; tilt via YOLO-World + EfficientSAM.</text>
+  <g font-size="15" font-weight="600" fill="#C7D2E4"><g><rect x="88" y="244" width="110" height="30" rx="15" fill="#18233A" stroke="#A3E635" stroke-opacity="0.45"/><text x="143" y="264" text-anchor="middle">YOLO-World</text></g><g><rect x="208" y="244" width="126" height="30" rx="15" fill="#18233A" stroke="#A3E635" stroke-opacity="0.45"/><text x="271" y="264" text-anchor="middle">EfficientSAM</text></g><g><rect x="344" y="244" width="77" height="30" rx="15" fill="#18233A" stroke="#A3E635" stroke-opacity="0.45"/><text x="382.5" y="264" text-anchor="middle">RANSAC</text></g><g><rect x="431" y="244" width="69" height="30" rx="15" fill="#18233A" stroke="#A3E635" stroke-opacity="0.45"/><text x="465.5" y="264" text-anchor="middle">Hough</text></g></g>
+  <g>
+      <rect x="905" y="66" width="170" height="176" rx="6" fill="none" stroke="#A3E635" stroke-width="2" stroke-dasharray="7 6" stroke-opacity="0.75"/>
+      <g stroke="#A3E635" stroke-width="3" stroke-linecap="round"><path d="M978,238 L998,74"/><path d="M1002,238 L1022,74"/></g>
+      <ellipse cx="1000" cy="74" rx="12" ry="5" fill="none" stroke="#A3E635" stroke-width="2.5"/>
+      <g stroke="#A3E635" stroke-width="2" stroke-opacity="0.85"><path d="M950,150 L1050,150"/></g>
+      <g fill="#A3E635"><path d="M950,150 l10,-5 l0,10 Z"/><path d="M1050,150 l-10,-5 l0,10 Z"/></g>
+      <path d="M1000,238 a40,40 0 0 1 14,-38" fill="none" stroke="#A3E635" stroke-width="2" stroke-opacity="0.7"/>
+      <circle cx="990" cy="118" r="3.5" fill="#A3E635"/><circle cx="1010" cy="196" r="3.5" fill="#A3E635"/>
+    </g>
+</svg>

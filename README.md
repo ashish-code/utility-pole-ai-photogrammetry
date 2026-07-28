@@ -1,3 +1,7 @@
+<div align="center">
+  <img src="docs/banner.svg" alt="Utility-Pole Photogrammetry — non-contact pole geometry from field video" width="100%">
+</div>
+
 # Utility Pole AI Photogrammetry
 
 > Computer-vision pipeline for **non-contact measurement** of utility pole geometry:
